@@ -1,29 +1,22 @@
-use std::fs;
 use std::ops;
 use std::cmp;
 use std::collections::HashMap;
 
 
-struct Suffix {
+pub struct Suffix {
     item: usize,
     start: usize
 }
 
+
 type ItemType = Vec<char>;
-type SliceType = [char];
+type SliceType = [char];  // array
 
 
 #[derive(Debug)]
 struct SimilarItem {
     item_idx: usize,
     pcl: usize
-}
-
-
-struct GeneralizedSuffixArray {
-    pub items: Vec<ItemType>,
-    pub suffixes: Vec<Suffix>,
-    pub lcp_array: Vec<usize>
 }
 
 
@@ -36,17 +29,21 @@ fn get_longest_common_prefix(a: &SliceType, b: &SliceType) -> usize {
             break;
         }
     }
-    let s1: String = a.iter().collect();
-    let s2: String = b.iter().collect();
-    println!("{}  {}", s1, s2);
     res
 }
+
 
 fn get_item_suffix<'a>(items: &'a Vec<ItemType>, suffix: &Suffix) -> &'a SliceType {
     &items[suffix.item][suffix.start..]
 }
 
-// TODO: Use hashmap to aggregate results
+
+pub struct GeneralizedSuffixArray {
+    pub items: Vec<ItemType>,
+    pub suffixes: Vec<Suffix>,
+    pub lcp_array: Vec<usize>
+}
+
 
 impl GeneralizedSuffixArray {
     pub fn new(items: Vec<ItemType>) -> Self {
@@ -72,7 +69,9 @@ impl GeneralizedSuffixArray {
     }
 
     fn get_neighborhood(&self, query: &SliceType, start_idx: usize, min_pcl: usize) -> HashMap<usize, usize> {
+
         let mut res: HashMap<usize, usize> = HashMap::new();
+
         if start_idx < self.suffixes.len() {
             let mut pcl = get_longest_common_prefix(&self[start_idx], query);
             if pcl >= min_pcl {
@@ -105,7 +104,6 @@ impl GeneralizedSuffixArray {
             }
         }
         res
-
     }
 
     pub fn similar(&self, query: &SliceType, min_pcl: usize) -> HashMap<usize, usize> {
@@ -124,11 +122,10 @@ impl GeneralizedSuffixArray {
                 *current_pcl = cmp::max(*current_pcl, *pcl);
             }
         }
-
         res
     }
-
 }
+
 
 impl ops::Index<usize> for GeneralizedSuffixArray {
     type Output = SliceType;
@@ -136,43 +133,5 @@ impl ops::Index<usize> for GeneralizedSuffixArray {
     fn index(&self, idx: usize) -> &Self::Output {
         let suffix = &self.suffixes[idx];
         get_item_suffix(&self.items, suffix)
-    }
-}
-
-
-fn main() {
-    let filename = "./data/strings.txt";
-    // TODO nicer to read lines directly
-    let contents = fs::read_to_string(filename)
-        .expect("error reading file");
-
-    let lines: Vec<&str> = contents
-        .split('\n')
-        .map(str::trim)
-        .filter(|line| line.len() > 0)
-        .collect();
-
-    // handle unicode better?
-    let vecs: Vec<ItemType> = lines
-        .into_iter()
-        .map(|line| line.chars().collect())
-        .collect();
-
-    for vec in vecs.iter() {
-        println!("{:?}", vec);
-    }
-
-    let suffix_array = GeneralizedSuffixArray::new(vecs);
-
-    for (i, _) in suffix_array.suffixes.iter().enumerate() {
-        let lcp = suffix_array.lcp_array[i];
-        let s: String = suffix_array[i].iter().collect();
-        println!("{} {} {}", i, lcp, s);
-    }
-
-    let query = vec!['s', 'e', 'e', 'l'];
-    for (item_idx, pcl) in suffix_array.similar(&query, 3).iter() {
-        let s: String = suffix_array.items[*item_idx].iter().collect();
-        println!("{} {}", *pcl, s);
     }
 }
