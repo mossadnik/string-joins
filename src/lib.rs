@@ -1,3 +1,4 @@
+use pyo3::prelude::*;
 use std::ops;
 use std::cmp;
 use std::collections::HashMap;
@@ -138,12 +139,14 @@ impl ops::Index<usize> for GeneralizedSuffixArray {
     }
 }
 
-
+#[pyclass]
 pub struct StringGeneralizedSuffixArray {
     suffix_array: GeneralizedSuffixArray
 }
 
+#[pymethods]
 impl StringGeneralizedSuffixArray {
+    #[new]
     pub fn new(strings: Vec<&str>) -> Self {
         let items: Vec<Vec<char>> = strings
         .into_iter()
@@ -162,4 +165,11 @@ impl StringGeneralizedSuffixArray {
         let res: String = self.suffix_array.items[idx].iter().collect();
         res
     }
+}
+
+
+#[pymodule]
+fn generalized_suffix_array(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_class::<StringGeneralizedSuffixArray>()?;
+    Ok(())
 }
