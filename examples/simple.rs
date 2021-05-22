@@ -1,6 +1,6 @@
 use std::fs;
 extern crate generalized_suffix_array;
-use generalized_suffix_array::GeneralizedSuffixArray;
+use generalized_suffix_array::StringGeneralizedSuffixArray;
 
 
 fn main() {
@@ -15,27 +15,17 @@ fn main() {
         .filter(|line| line.len() > 0)
         .collect();
 
-    // handle unicode better?
-    let vecs: Vec<Vec<char>> = lines
-        .into_iter()
-        .map(|line| line.chars().collect())
-        .collect();
-
-    for vec in vecs.iter() {
-        println!("{:?}", vec);
+    for vec in lines.iter() {
+        println!("{}", vec);
     }
+    println!("");
 
-    let suffix_array = GeneralizedSuffixArray::new(vecs);
+    let suffix_array = StringGeneralizedSuffixArray::new(lines);
 
-    for (i, _) in suffix_array.suffixes.iter().enumerate() {
-        let lcp = suffix_array.lcp_array[i];
-        let s: String = suffix_array[i].iter().collect();
-        println!("{} {} {}", i, lcp, s);
-    }
 
-    let query = vec!['s', 'e', 'e', 'l'];
+    let query = "seel";
     for (item_idx, pcl) in suffix_array.similar(&query, 3).iter() {
-        let s: String = suffix_array.items[*item_idx].iter().collect();
+        let s: String = suffix_array.get_item(*item_idx);
         println!("{} {}", *pcl, s);
     }
 }

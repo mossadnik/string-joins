@@ -68,6 +68,7 @@ impl GeneralizedSuffixArray {
         Self { items, suffixes, lcp_array }
     }
 
+    /// Get all suffixes around start_idx that share at least min_pcl elemetns with the query
     fn get_neighborhood(&self, query: &SliceType, start_idx: usize, min_pcl: usize) -> HashMap<usize, usize> {
 
         let mut res: HashMap<usize, usize> = HashMap::new();
@@ -106,6 +107,7 @@ impl GeneralizedSuffixArray {
         res
     }
 
+    /// get all items for which the longest common substring with the query has length at least min_pcl
     pub fn similar(&self, query: &SliceType, min_pcl: usize) -> HashMap<usize, usize> {
         let mut res: HashMap<usize, usize> = HashMap::new();
 
@@ -133,5 +135,31 @@ impl ops::Index<usize> for GeneralizedSuffixArray {
     fn index(&self, idx: usize) -> &Self::Output {
         let suffix = &self.suffixes[idx];
         get_item_suffix(&self.items, suffix)
+    }
+}
+
+
+pub struct StringGeneralizedSuffixArray {
+    suffix_array: GeneralizedSuffixArray
+}
+
+impl StringGeneralizedSuffixArray {
+    pub fn new(strings: Vec<&str>) -> Self {
+        let items: Vec<Vec<char>> = strings
+        .into_iter()
+        .map(|line| line.chars().collect())
+        .collect();
+
+        Self { suffix_array: GeneralizedSuffixArray::new(items) }
+    }
+
+    pub fn similar(&self, query: &str, min_pcl: usize) -> HashMap<usize, usize> {
+        let q: Vec<char> = query.chars().collect();
+        self.suffix_array.similar(&q, min_pcl)
+    }
+
+    pub fn get_item(&self, idx: usize) -> String {
+        let res: String = self.suffix_array.items[idx].iter().collect();
+        res
     }
 }
