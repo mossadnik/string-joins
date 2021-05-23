@@ -1,10 +1,11 @@
+
 use std::fs;
 extern crate generalized_suffix_array;
-use generalized_suffix_array::StringGeneralizedSuffixArray;
+use generalized_suffix_array::GeneralizedSuffixArray;
 
 
 fn main() {
-    let filename = "./data/strings.txt";
+    let filename = "./example-data/strings.txt";
     // TODO nicer to read lines directly
     let contents = fs::read_to_string(filename)
         .expect("error reading file");
@@ -20,7 +21,7 @@ fn main() {
     }
     println!("");
 
-    let suffix_array = StringGeneralizedSuffixArray::new(lines);
+    let suffix_array = GeneralizedSuffixArray::new(lines);
 
 
     let query = "seel";

@@ -39,14 +39,14 @@ fn get_item_suffix<'a>(items: &'a Vec<ItemType>, suffix: &Suffix) -> &'a SliceTy
 }
 
 
-pub struct GeneralizedSuffixArray {
+pub struct BaseGeneralizedSuffixArray {
     pub items: Vec<ItemType>,
     pub suffixes: Vec<Suffix>,
     pub lcp_array: Vec<usize>
 }
 
 
-impl GeneralizedSuffixArray {
+impl BaseGeneralizedSuffixArray {
     pub fn new(items: Vec<ItemType>) -> Self {
 
         let mut suffixes: Vec<Suffix> = vec![];
@@ -130,7 +130,7 @@ impl GeneralizedSuffixArray {
 }
 
 
-impl ops::Index<usize> for GeneralizedSuffixArray {
+impl ops::Index<usize> for BaseGeneralizedSuffixArray {
     type Output = SliceType;
 
     fn index(&self, idx: usize) -> &Self::Output {
@@ -139,13 +139,14 @@ impl ops::Index<usize> for GeneralizedSuffixArray {
     }
 }
 
+
 #[pyclass]
-pub struct StringGeneralizedSuffixArray {
-    suffix_array: GeneralizedSuffixArray
+pub struct GeneralizedSuffixArray {
+    suffix_array: BaseGeneralizedSuffixArray
 }
 
 #[pymethods]
-impl StringGeneralizedSuffixArray {
+impl GeneralizedSuffixArray {
     #[new]
     pub fn new(strings: Vec<&str>) -> Self {
         let items: Vec<Vec<char>> = strings
@@ -153,7 +154,7 @@ impl StringGeneralizedSuffixArray {
         .map(|line| line.chars().collect())
         .collect();
 
-        Self { suffix_array: GeneralizedSuffixArray::new(items) }
+        Self { suffix_array: BaseGeneralizedSuffixArray::new(items) }
     }
 
     pub fn similar(&self, query: &str, min_pcl: usize) -> HashMap<usize, usize> {
@@ -170,6 +171,6 @@ impl StringGeneralizedSuffixArray {
 
 #[pymodule]
 fn generalized_suffix_array(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_class::<StringGeneralizedSuffixArray>()?;
+    m.add_class::<GeneralizedSuffixArray>()?;
     Ok(())
 }
