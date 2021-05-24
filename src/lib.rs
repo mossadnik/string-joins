@@ -1,7 +1,14 @@
-use pyo3::prelude::*;
 use std::ops;
 use std::cmp;
+use std::isize;
+use std::convert::TryFrom;
 use std::collections::HashMap;
+
+use pyo3::prelude::*;
+use pyo3::class::{
+    PySequenceProtocol,
+};
+use pyo3::exceptions::{PyIndexError};
 
 
 pub struct Suffix {
@@ -162,11 +169,32 @@ impl GeneralizedSuffixArray {
         self.suffix_array.similar(&q, min_pcl)
     }
 
-    pub fn get_item(&self, idx: usize) -> String {
-        let res: String = self.suffix_array.items[idx].iter().collect();
-        res
+    fn get_item(&self, idx: usize) -> String {
+        if idx < self.suffix_array.items.len() {
+            let res: String = self.suffix_array.items[idx].iter().collect();
+            return res
+        } else {
+            panic!();  // todo
+        }
+    }
+
+}
+
+
+#[pyproto]
+impl PySequenceProtocol for GeneralizedSuffixArray {
+    fn __len__(&self) -> usize {
+        self.suffix_array.items.len()
+    }
+
+    fn __getitem__(&self, key: isize) -> PyResult<String> {
+        let idx = usize::try_from(key)?;
+        let s = self.get_item(idx);
+        Ok(s)
+        // Err(PyIndexError::new_err(()))
     }
 }
+
 
 
 #[pymodule]
