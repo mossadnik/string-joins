@@ -3,7 +3,6 @@ use std::cmp;
 use std::isize;
 use std::convert::TryFrom;
 use std::collections::HashMap;
-
 use pyo3::prelude::*;
 use pyo3::class::{
     PySequenceProtocol,
@@ -77,19 +76,22 @@ impl BaseGeneralizedSuffixArray {
     }
 
     /// Get all suffixes around start_idx that share at least min_pcl elemetns with the query
-    fn get_neighborhood(&self, query: &SliceType, start_idx: usize, min_pcl: usize) -> HashMap<usize, usize> {
+    fn get_neighborhood(&self, query: &SliceType, start_idx: usize, min_pcl: usize) -> Vec<(&Suffix, usize)> {
 
-        let mut res: HashMap<usize, usize> = HashMap::new();
+        let mut res: Vec<(&Suffix, usize)> = Vec::new();
 
+        let mut insert_result = |idx: usize, pcl: usize| -> () {
+            let suffix = &self.suffixes[idx];
+            res.push((suffix, pcl));
+        };
         if start_idx < self.suffixes.len() {
             let mut pcl = get_longest_common_prefix(&self[start_idx], query);
             if pcl >= min_pcl {
-                res.insert(self.suffixes[start_idx].item, pcl);
-
+                insert_result(start_idx, pcl);
                 for i in start_idx..self.suffixes.len() - 1 {
                     pcl = cmp::min(pcl, self.lcp_array[i]);
                     if pcl >= min_pcl {
-                        res.insert(self.suffixes[i + 1].item, pcl);
+                        insert_result(i + 1, pcl);
                     } else {
                         break;
                     }
@@ -100,12 +102,11 @@ impl BaseGeneralizedSuffixArray {
         if start_idx > 0 {
             let mut pcl = get_longest_common_prefix(&self[start_idx - 1], query);
             if pcl >= min_pcl {
-                res.insert(self.suffixes[start_idx - 1].item, pcl);
-
+                insert_result(start_idx - 1, pcl);
                 for i in (0..start_idx - 1).rev() {
                     pcl = cmp::min(pcl, self.lcp_array[i]);
                     if pcl >= min_pcl {
-                        res.insert(self.suffixes[i].item, pcl);
+                        insert_result(i, pcl);
                     } else {
                         break;
                     }
@@ -127,8 +128,8 @@ impl BaseGeneralizedSuffixArray {
                 Err(idx) => idx
             };
 
-            for (item_idx, pcl) in self.get_neighborhood(q, start_idx, min_pcl).iter() {
-                let current_pcl = res.entry(*item_idx).or_insert(0);
+            for (suffix, pcl) in self.get_neighborhood(q, start_idx, min_pcl).iter() {
+                let current_pcl = res.entry(suffix.item).or_insert(0);
                 *current_pcl = cmp::max(*current_pcl, *pcl);
             }
         }
@@ -180,7 +181,6 @@ impl GeneralizedSuffixArray {
 
 }
 
-
 #[pyproto]
 impl PySequenceProtocol for GeneralizedSuffixArray {
     fn __len__(&self) -> usize {
@@ -189,9 +189,11 @@ impl PySequenceProtocol for GeneralizedSuffixArray {
 
     fn __getitem__(&self, key: isize) -> PyResult<String> {
         let idx = usize::try_from(key)?;
+        if idx >= self.suffix_array.items.len() {
+            return Err(PyIndexError::new_err(()))
+        }
         let s = self.get_item(idx);
         Ok(s)
-        // Err(PyIndexError::new_err(()))
     }
 }
 
