@@ -153,6 +153,16 @@ pub struct GeneralizedSuffixArray {
     suffix_array: BaseGeneralizedSuffixArray
 }
 
+impl GeneralizedSuffixArray {
+    fn get_item(&self, idx: usize) -> Result<String, ()> {
+        if idx < self.suffix_array.items.len() {
+            Ok(self.suffix_array.items[idx].iter().collect::<String>())
+        } else {
+            Err(())
+        }
+    }
+}
+
 #[pymethods]
 impl GeneralizedSuffixArray {
     #[new]
@@ -170,15 +180,6 @@ impl GeneralizedSuffixArray {
         self.suffix_array.similar(&q, min_pcl)
     }
 
-    fn get_item(&self, idx: usize) -> String {
-        if idx < self.suffix_array.items.len() {
-            let res: String = self.suffix_array.items[idx].iter().collect();
-            return res
-        } else {
-            panic!();  // todo
-        }
-    }
-
 }
 
 #[pyproto]
@@ -189,11 +190,11 @@ impl PySequenceProtocol for GeneralizedSuffixArray {
 
     fn __getitem__(&self, key: isize) -> PyResult<String> {
         let idx = usize::try_from(key)?;
-        if idx >= self.suffix_array.items.len() {
-            return Err(PyIndexError::new_err(()))
+        let res = self.get_item(idx);
+        match res {
+            Ok(s) => Ok(s),
+            Err(_) => Err(PyIndexError::new_err(()))
         }
-        let s = self.get_item(idx);
-        Ok(s)
     }
 }
 
