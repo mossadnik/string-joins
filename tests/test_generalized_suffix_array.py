@@ -9,7 +9,8 @@ from generalized_suffix_array import GeneralizedSuffixArray
     ('yello', 4, None, {0: 4}),
     ('xyz', 1, None, {}),
     ('hell', None, .8, {0: 4}),
-    ('ell', 4, .1, {})  # min_overlap_chars prevents match
+    ('ell', 3, .1, {0: 3, 1: 3}),
+    ('all', 3, .1, {})  # min_overlap_chars prevents match
 ])
 def test_similar(query, min_overlap_chars, min_overlap_pct, expected):
     strings = ['hello', 'bella']
