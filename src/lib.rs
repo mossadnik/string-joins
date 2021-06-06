@@ -194,20 +194,24 @@ impl GeneralizedSuffixArray {
             Some(val) => val,
             _ => 0.0
         };
+
+        let min_chars_from_pct = usize::try_from(
+            (min_pct * (query.len() as f32) / (2. - min_pct)).ceil() as i64
+        );
+        let min_chars_from_pct = match min_chars_from_pct {
+            Ok(val) => val,
+            _ => return Err(PyValueError::new_err("Invalid values for min_overlap."))
+        };
+
         let min_chars = match min_overlap_chars {
             Some(val) => val,
             _ => match min_overlap_pct {
-                Some(pct) => {
-                    // set min_chars to min value consistent with min_pct
-                    let min_chars_f = pct * (query.len() as f32) / (2. - pct);
-                    match usize::try_from(min_chars_f.ceil() as i64) {
-                        Ok(val) => val,
-                        _ => return Err(PyValueError::new_err("Invalid values for min_overlap."))
-                    }
-                },
+                Some(_) => 0,
                 _ => return Err(PyValueError::new_err("Invalid values for min_overlap."))
             }
         };
+        let min_chars = cmp::max(min_chars, min_chars_from_pct);
+
         let q: Vec<char> = query.chars().collect();
         Ok(self.suffix_array.similar(&q, min_chars, min_pct))
     }
