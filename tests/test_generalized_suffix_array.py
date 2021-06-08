@@ -18,7 +18,7 @@ def test_similar(query, min_overlap_chars, min_overlap_pct, expected):
     index = GeneralizedSuffixArray(strings)
 
     actual = index.similar(query, min_overlap_chars, min_overlap_pct)
-    assert actual == expected
+    assert {k: v.len_overlap for k, v in actual.items()} == expected
 
 
 def test_similar_no_overlap_raises():

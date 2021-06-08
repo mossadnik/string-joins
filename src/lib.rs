@@ -3,6 +3,7 @@ use std::cmp;
 use std::isize;
 use std::convert::TryFrom;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use pyo3::prelude::*;
 use pyo3::class::{
     PySequenceProtocol,
@@ -14,6 +15,24 @@ pub struct Suffix {
     item: usize,
     start: usize
 }
+
+
+#[pyclass]
+pub struct MatchDetails {
+    #[pyo3(get)]
+    len_1: usize,
+    #[pyo3(get)]
+    len_2: usize,
+    #[pyo3(get)]
+    len_overlap: usize,
+    #[pyo3(get)]
+    start_1: usize,
+    #[pyo3(get)]
+    start_2: usize,
+    #[pyo3(get)]
+    overlap_pct: f32
+}
+
 
 
 type ItemType = Vec<char>;
@@ -76,19 +95,19 @@ impl BaseGeneralizedSuffixArray {
     }
 
     /// Get all suffixes around start_idx that share at least min_pcl elemetns with the query
-    fn get_neighborhood(&self, query: &SliceType, start_idx: usize, min_overlap_chars: usize, min_overlap_pct: f32) -> Vec<(&Suffix, usize)> {
+    fn get_neighborhood(&self, query: &SliceType, start_idx: usize, min_overlap_chars: usize, min_overlap_pct: f32) -> Vec<(&Suffix, MatchDetails)> {
 
-        let mut res: Vec<(&Suffix, usize)> = Vec::new();
+        let mut res: Vec<(&Suffix, MatchDetails)> = Vec::new();
 
-        let check_overlap_pct = |overlap: usize, len1: usize, len2: usize| -> bool {
-            (2. * overlap as f32) / ((len1 + len2) as f32) >= min_overlap_pct
-        };
-
-        let mut insert_result = |idx: usize, pcl: usize| -> () {
+        let mut insert_result = |idx: usize, len_overlap: usize| -> () {
             let suffix = &self.suffixes[idx];
             // check overlap pct
-            if min_overlap_pct == 0.0 || check_overlap_pct(pcl, query.len(), self.items[suffix.item].len()) {
-                res.push((suffix, pcl));
+            let len_1 = query.len();
+            let len_2 = self.items[suffix.item].len();
+            let overlap_pct = (2. * len_overlap as f32) / ((len_1 + len_2) as f32);
+
+            if overlap_pct >= min_overlap_pct {
+                res.push((suffix, MatchDetails{ len_1, len_2, len_overlap, start_1: 0, start_2: 0, overlap_pct }));
             }
         };
         if start_idx < self.suffixes.len() {
@@ -124,8 +143,8 @@ impl BaseGeneralizedSuffixArray {
     }
 
     /// get all items for which the longest common substring with the query has length at least min_pcl
-    pub fn similar(&self, query: &SliceType, min_overlap_chars: usize, min_overlap_pct: f32) -> HashMap<usize, usize> {
-        let mut res: HashMap<usize, usize> = HashMap::new();
+    pub fn similar(&self, query: &SliceType, min_overlap_chars: usize, min_overlap_pct: f32) -> HashMap<usize, MatchDetails> {
+        let mut res: HashMap<usize, MatchDetails> = HashMap::new();
 
         let len = query.len() + 1;
         let len = if len > min_overlap_chars {len - min_overlap_chars} else {0};
@@ -138,9 +157,20 @@ impl BaseGeneralizedSuffixArray {
                 Err(idx) => idx
             };
 
-            for (suffix, overlap_chars) in self.get_neighborhood(q, start_idx, min_overlap_chars, min_overlap_pct).iter() {
-                let current_overlap_chars = res.entry(suffix.item).or_insert(0);
-                *current_overlap_chars = cmp::max(*current_overlap_chars, *overlap_chars);
+            for (suffix, mut match_details) in self.get_neighborhood(q, start_idx, min_overlap_chars, min_overlap_pct).into_iter() {
+                let entry = res.entry(suffix.item);
+                match_details.start_1 = offset;
+                match_details.start_2 = suffix.start;
+                match entry {
+                    Entry::Vacant(e) => {e.insert(match_details);},
+                    Entry::Occupied(mut e) => {
+                        let current_match_details = e.get();
+                        if match_details.len_overlap >= current_match_details.len_overlap
+                        && match_details.start_1 <= current_match_details.start_1 {
+                            e.insert(match_details);
+                        }
+                    }
+                };
             }
         }
         res
@@ -189,7 +219,11 @@ impl GeneralizedSuffixArray {
         Self { suffix_array: BaseGeneralizedSuffixArray::new(items) }
     }
 
-    pub fn similar(&self, query: &str, min_overlap_chars: Option<usize>, min_overlap_pct: Option<f32>) -> PyResult<HashMap<usize, usize>> {
+    pub fn similar(
+        &self, query: &str,
+        min_overlap_chars: Option<usize>,
+        min_overlap_pct: Option<f32>
+    ) -> PyResult<HashMap<usize, MatchDetails>> {
         let min_pct = match min_overlap_pct {
             Some(val) => val,
             _ => 0.0
@@ -239,5 +273,6 @@ impl PySequenceProtocol for GeneralizedSuffixArray {
 #[pymodule]
 fn generalized_suffix_array(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<GeneralizedSuffixArray>()?;
+    m.add_class::<MatchDetails>()?;
     Ok(())
 }
