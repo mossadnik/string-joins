@@ -188,10 +188,8 @@ impl ops::Index<usize> for BaseGeneralizedSuffixArray {
 }
 
 
-/// GeneralizedSuffixArray(strings: List[str])
-/// --
-///
 #[pyclass]
+#[text_signature = "(strings)"]
 pub struct GeneralizedSuffixArray {
     suffix_array: BaseGeneralizedSuffixArray
 }
@@ -219,6 +217,7 @@ impl GeneralizedSuffixArray {
         Self { suffix_array: BaseGeneralizedSuffixArray::new(items) }
     }
 
+    #[text_signature = "(query, min_overlap_chars, min_overlap_pct)"]
     pub fn similar(
         &self, query: &str,
         min_overlap_chars: Option<usize>,
@@ -267,7 +266,6 @@ impl PySequenceProtocol for GeneralizedSuffixArray {
         }
     }
 }
-
 
 
 #[pymodule]
