@@ -23,12 +23,6 @@ pub struct MatchDetails {
 type ItemType = Vec<char>;
 type SliceType = [char];
 
-#[derive(Debug)]
-struct SimilarItem {
-    item_idx: usize,
-    pcl: usize,
-}
-
 fn get_longest_common_prefix(a: &SliceType, b: &SliceType) -> usize {
     let pairs = a.iter().zip(b.iter());
     pairs.take_while(|(a, b)| a == b).count()
@@ -175,6 +169,7 @@ impl BaseGeneralizedSuffixArray {
         res
     }
 
+    /// Helper function to use strings as inputs and outputs
     pub fn similar_str(
         &self,
         query: &str,
@@ -203,6 +198,8 @@ impl ops::Index<usize> for BaseGeneralizedSuffixArray {
 mod test {
     use super::*;
 
+    /// Test that the suffix array is correctly constructed
+    ///
     #[test]
     fn correct_construction() {
         let strings: Vec<Vec<char>> = vec!["hello".chars().collect(), "bella".chars().collect()];
@@ -242,8 +239,14 @@ mod test {
         );
     }
 
+    /// Test some example queries
+    ///
     #[test]
     fn queries() {
+        fn stringset(items: &[&str]) -> HashSet<String> {
+            items.iter().map(|&s| s.to_owned()).collect()
+        }
+
         let strings: Vec<Vec<char>> = vec!["hello".chars().collect(), "bella".chars().collect()];
         let index = BaseGeneralizedSuffixArray::new(strings);
         println!("{:?}", index);
@@ -263,12 +266,10 @@ mod test {
 
         assert_eq!(actual, expected);
     }
-
-    fn stringset(items: &[&str]) -> HashSet<String> {
-        items.iter().map(|&s| s.to_owned()).collect()
-    }
 }
 
+/// The Python wrapper
+///
 #[cfg(not(test))]
 mod py {
     use pyo3::class::PySequenceProtocol;
@@ -295,6 +296,7 @@ mod py {
         overlap_pct: f32,
     }
 
+    /// Convert the internal MatchDetails struct into the one exposed to Python
     impl From<super::MatchDetails> for MatchDetails {
         fn from(md: super::MatchDetails) -> MatchDetails {
             MatchDetails {
