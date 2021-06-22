@@ -1,5 +1,5 @@
 #!/bin/bash
-# cargo test
+cargo test
 cargo build --release
 
 if [ ! -e generalized_suffix_array.so ]
