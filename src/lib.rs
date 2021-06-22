@@ -72,56 +72,48 @@ impl BaseGeneralizedSuffixArray {
         query: &SliceType,
         start_idx: usize,
         min_overlap_chars: usize,
-        min_overlap_pct: f32,
-    ) -> Vec<(&Suffix, MatchDetails)> {
-        let mut res: Vec<(&Suffix, MatchDetails)> = Vec::new();
+    ) -> impl Iterator<Item = (usize, usize)> + '_ {
+        let forward = {
+            let mut pos = start_idx;
+            let mut lcp = (start_idx < self.suffixes.len())
+                .then(|| get_longest_common_prefix(&self[start_idx], query))
+                .unwrap_or(0);
 
-        let mut insert_result = |idx: usize, len_overlap: usize| {
-            let suffix = &self.suffixes[idx];
-            // check overlap pct
-            let len_1 = query.len();
-            let len_2 = self.items[suffix.item].len();
-            let overlap_pct = (2. * len_overlap as f32) / ((len_1 + len_2) as f32);
+            std::iter::from_fn(move || {
+                if pos < self.suffixes.len() && lcp >= min_overlap_chars {
+                    let res = (pos, lcp);
 
-            if overlap_pct >= min_overlap_pct {
-                res.push((
-                    suffix,
-                    MatchDetails {
-                        len_1,
-                        len_2,
-                        len_overlap,
-                        start_1: 0,
-                        start_2: 0,
-                        overlap_pct,
-                    },
-                ));
-            }
+                    lcp = cmp::min(lcp, self.lcp_array[pos + 1]);
+                    pos += 1;
+
+                    Some(res)
+                } else {
+                    None
+                }
+            })
         };
 
-        // search forward
-        if start_idx < self.suffixes.len() {
+        let backward = {
             let mut pos = start_idx;
-            let mut lcp = get_longest_common_prefix(&self[start_idx], query);
+            let mut lcp = (pos > 0)
+                .then(|| get_longest_common_prefix(&self[pos - 1], query))
+                .unwrap_or(0);
 
-            while pos < self.suffixes.len() && lcp >= min_overlap_chars {
-                insert_result(pos, lcp);
-                lcp = cmp::min(lcp, self.lcp_array[pos + 1]);
-                pos += 1;
-            }
-        }
+            std::iter::from_fn(move || {
+                if pos > 0 && lcp >= min_overlap_chars {
+                    let res = (pos - 1, lcp);
 
-        // search backward
-        if start_idx > 0 {
-            let mut pos = start_idx;
-            let mut lcp = get_longest_common_prefix(&self[pos - 1], query);
+                    lcp = cmp::min(lcp, self.lcp_array[pos - 1]);
+                    pos -= 1;
 
-            while pos > 0 && lcp >= min_overlap_chars {
-                insert_result(pos - 1, lcp);
-                lcp = cmp::min(lcp, self.lcp_array[pos - 1]);
-                pos -= 1;
-            }
-        }
-        res
+                    Some(res)
+                } else {
+                    None
+                }
+            })
+        };
+
+        forward.chain(backward)
     }
 
     /// get all items for which the longest common substring with the query has length at least min_pcl
@@ -145,11 +137,27 @@ impl BaseGeneralizedSuffixArray {
                 .suffixes
                 .binary_search_by(|probe| get_item_suffix(&self.items, probe).cmp(q));
 
-            for (suffix, mut match_details) in
-                self.get_neighborhood(q, start_idx, min_overlap_chars, min_overlap_pct)
-            {
-                match_details.start_1 = offset;
-                match_details.start_2 = suffix.start;
+            for (idx, len_overlap) in self.get_neighborhood(q, start_idx, min_overlap_chars) {
+                let suffix = &self.suffixes[idx];
+
+                let len_1 = query.len();
+                let len_2 = self.items[suffix.item].len();
+                let start_1 = offset;
+                let start_2 = suffix.start;
+                let overlap_pct = (2. * len_overlap as f32) / ((len_1 + len_2) as f32);
+
+                if overlap_pct < min_overlap_pct {
+                    continue;
+                }
+
+                let match_details = MatchDetails {
+                    len_1,
+                    len_2,
+                    len_overlap,
+                    start_1,
+                    start_2,
+                    overlap_pct,
+                };
 
                 match res.get(&suffix.item) {
                     // keep the old entry
