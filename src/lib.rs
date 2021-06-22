@@ -50,7 +50,8 @@ impl BaseGeneralizedSuffixArray {
         }
         suffixes.sort_by_key(|suffix| &items[suffix.item][suffix.start..]);
 
-        let mut lcp_array = Vec::new();
+        // insert dummy empty strings to simplify looping logic
+        let mut lcp_array = vec![0];
         for (a, b) in suffixes.iter().zip(suffixes.iter().skip(1)) {
             let s1 = get_item_suffix(&items, a);
             let s2 = get_item_suffix(&items, b);
@@ -97,34 +98,27 @@ impl BaseGeneralizedSuffixArray {
             }
         };
 
+        // search forward
         if start_idx < self.suffixes.len() {
+            let mut pos = start_idx;
             let mut lcp = get_longest_common_prefix(&self[start_idx], query);
 
-            if lcp >= min_overlap_chars {
-                insert_result(start_idx, lcp);
-                for i in start_idx..self.suffixes.len() - 1 {
-                    lcp = cmp::min(lcp, self.lcp_array[i]);
-                    if lcp >= min_overlap_chars {
-                        insert_result(i + 1, lcp);
-                    } else {
-                        break;
-                    }
-                }
+            while pos < self.suffixes.len() && lcp >= min_overlap_chars {
+                insert_result(pos, lcp);
+                lcp = cmp::min(lcp, self.lcp_array[pos + 1]);
+                pos += 1;
             }
         }
 
+        // search backward
         if start_idx > 0 {
-            let mut lcp = get_longest_common_prefix(&self[start_idx - 1], query);
-            if lcp >= min_overlap_chars {
-                insert_result(start_idx - 1, lcp);
-                for i in (0..start_idx - 1).rev() {
-                    lcp = cmp::min(lcp, self.lcp_array[i]);
-                    if lcp >= min_overlap_chars {
-                        insert_result(i, lcp);
-                    } else {
-                        break;
-                    }
-                }
+            let mut pos = start_idx;
+            let mut lcp = get_longest_common_prefix(&self[pos - 1], query);
+
+            while pos > 0 && lcp >= min_overlap_chars {
+                insert_result(pos - 1, lcp);
+                lcp = cmp::min(lcp, self.lcp_array[pos - 1]);
+                pos -= 1;
             }
         }
         res
@@ -226,6 +220,7 @@ mod test {
         assert_eq!(
             index.lcp_array,
             vec![
+                0, // $, "a",
                 0, // "a", "bella",
                 0, // "bella", "ella",
                 3, // "ella", "ello",
@@ -266,6 +261,14 @@ mod test {
         let expected = stringset(&["hello"]);
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn ensure_empty_index_does_not_panic() {
+        let index = BaseGeneralizedSuffixArray::new(Vec::new());
+        println!("{:?}", index);
+
+        index.similar_str("illi", 2, 0.0);
     }
 }
 
