@@ -41,7 +41,7 @@ pub struct BaseGeneralizedSuffixArray {
 
 impl BaseGeneralizedSuffixArray {
     pub fn new(items: Vec<ItemType>) -> Self {
-        let mut suffixes: Vec<Suffix> = vec![];
+        let mut suffixes = Vec::new();
 
         for (item, content) in items.iter().enumerate() {
             for start in 0..content.len() {
@@ -50,7 +50,7 @@ impl BaseGeneralizedSuffixArray {
         }
         suffixes.sort_by_key(|suffix| &items[suffix.item][suffix.start..]);
 
-        let mut lcp_array: Vec<usize> = vec![];
+        let mut lcp_array = Vec::new();
         for (a, b) in suffixes.iter().zip(suffixes.iter().skip(1)) {
             let s1 = get_item_suffix(&items, a);
             let s2 = get_item_suffix(&items, b);
@@ -96,6 +96,7 @@ impl BaseGeneralizedSuffixArray {
                 ));
             }
         };
+
         if start_idx < self.suffixes.len() {
             let mut lcp = get_longest_common_prefix(&self[start_idx], query);
 
@@ -136,6 +137,10 @@ impl BaseGeneralizedSuffixArray {
         min_overlap_chars: usize,
         min_overlap_pct: f32,
     ) -> HashMap<usize, MatchDetails> {
+        fn prev_is_larger(prev: &MatchDetails, new: &MatchDetails) -> bool {
+            (prev.len_overlap > new.len_overlap) || (prev.start_1 < new.start_1)
+        }
+
         let mut res: HashMap<usize, MatchDetails> = HashMap::new();
 
         let len = (query.len() + 1).saturating_sub(min_overlap_chars);
@@ -146,20 +151,16 @@ impl BaseGeneralizedSuffixArray {
                 .suffixes
                 .binary_search_by(|probe| get_item_suffix(&self.items, probe).cmp(q));
 
-            for (suffix, mut match_details) in self
-                .get_neighborhood(q, start_idx, min_overlap_chars, min_overlap_pct)
-                .into_iter()
+            for (suffix, mut match_details) in
+                self.get_neighborhood(q, start_idx, min_overlap_chars, min_overlap_pct)
             {
                 match_details.start_1 = offset;
                 match_details.start_2 = suffix.start;
 
                 match res.get(&suffix.item) {
-                    Some(prev)
-                        if (prev.len_overlap > match_details.len_overlap)
-                            || (prev.start_1 < match_details.start_1) =>
-                    {
-                        // keep the old entry
-                    }
+                    // keep the old entry
+                    Some(prev) if prev_is_larger(prev, &match_details) => {}
+                    // upsert the entry
                     _ => {
                         res.insert(suffix.item, match_details);
                     }
@@ -272,11 +273,12 @@ mod test {
 ///
 #[cfg(not(test))]
 mod py {
-    use pyo3::class::PySequenceProtocol;
-    use pyo3::exceptions::{PyIndexError, PyValueError};
-    use pyo3::prelude::*;
+    use pyo3::{
+        class::PySequenceProtocol,
+        exceptions::{PyIndexError, PyValueError},
+        prelude::*,
+    };
     use std::convert::{TryFrom, TryInto};
-    use std::isize;
 
     use super::*;
 
