@@ -140,8 +140,8 @@ impl BaseGeneralizedSuffixArray {
             for (idx, len_overlap) in self.get_neighborhood(q, start_idx, min_overlap_chars) {
                 let suffix = &self.suffixes[idx];
 
-                let len_1 = query.len();
-                let len_2 = self.items[suffix.item].len();
+                let len_1 = query.chars().count();
+                let len_2 = self.items[suffix.item].chars().count();
                 let start_1 = offset;
                 let start_2 = suffix.start;
                 let overlap_pct = (2. * len_overlap as f32) / ((len_1 + len_2) as f32);
@@ -381,7 +381,7 @@ mod py {
         ) -> PyResult<HashMap<usize, MatchDetails>> {
             let min_pct = min_overlap_pct.unwrap_or(0.0);
 
-            let min_chars_from_pct = min_pct * (query.len() as f32) / (2. - min_pct);
+            let min_chars_from_pct = min_pct * (query.chars().count() as f32) / (2. - min_pct);
             let min_chars_from_pct: usize = (min_chars_from_pct.ceil() as i64)
                 .try_into()
                 .map_err(|_| PyValueError::new_err("Invalid values for min_overlap."))?;
