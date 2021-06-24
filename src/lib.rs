@@ -20,31 +20,28 @@ pub struct MatchDetails {
     overlap_pct: f32,
 }
 
-type ItemType = Vec<char>;
-type SliceType = [char];
-
-fn get_longest_common_prefix(a: &SliceType, b: &SliceType) -> usize {
-    let pairs = a.iter().zip(b.iter());
+fn get_longest_common_prefix(a: &str, b: &str) -> usize {
+    let pairs = a.chars().zip(b.chars());
     pairs.take_while(|(a, b)| a == b).count()
 }
 
-fn get_item_suffix<'a>(items: &'a [ItemType], suffix: &Suffix) -> &'a SliceType {
+fn get_item_suffix<'a>(items: &'a [String], suffix: &Suffix) -> &'a str {
     &items[suffix.item][suffix.start..]
 }
 
 #[derive(Debug)]
 pub struct BaseGeneralizedSuffixArray {
-    pub items: Vec<ItemType>,
+    pub items: Vec<String>,
     pub suffixes: Vec<Suffix>,
     pub lcp_array: Vec<usize>,
 }
 
 impl BaseGeneralizedSuffixArray {
-    pub fn new(items: Vec<ItemType>) -> Self {
+    pub fn new(items: Vec<String>) -> Self {
         let mut suffixes = Vec::new();
 
         for (item, content) in items.iter().enumerate() {
-            for start in 0..content.len() {
+            for (start, _) in content.char_indices() {
                 suffixes.push(Suffix { item, start });
             }
         }
@@ -69,7 +66,7 @@ impl BaseGeneralizedSuffixArray {
     /// Get all suffixes around start_idx that share at least min_pcl elements with the query
     fn get_neighborhood(
         &self,
-        query: &SliceType,
+        query: &str,
         start_idx: usize,
         min_overlap_chars: usize,
     ) -> impl Iterator<Item = (usize, usize)> + '_ {
@@ -119,7 +116,7 @@ impl BaseGeneralizedSuffixArray {
     /// get all items for which the longest common substring with the query has length at least min_pcl
     pub fn similar(
         &self,
-        query: &SliceType,
+        query: &str,
         min_overlap_chars: usize,
         min_overlap_pct: f32,
     ) -> HashMap<usize, MatchDetails> {
@@ -179,17 +176,14 @@ impl BaseGeneralizedSuffixArray {
         min_overlap_chars: usize,
         min_overlap_pct: f32,
     ) -> HashSet<String> {
-        let query = query.chars().collect::<Vec<_>>();
         let res = self.similar(&query, min_overlap_chars, min_overlap_pct);
 
-        res.keys()
-            .map(|&i| self.items[i].iter().collect::<String>())
-            .collect()
+        res.keys().map(|&i| self.items[i].clone()).collect()
     }
 }
 
 impl ops::Index<usize> for BaseGeneralizedSuffixArray {
-    type Output = SliceType;
+    type Output = str;
 
     fn index(&self, idx: usize) -> &Self::Output {
         let suffix = &self.suffixes[idx];
@@ -205,7 +199,7 @@ mod test {
     ///
     #[test]
     fn correct_construction() {
-        let strings: Vec<Vec<char>> = vec!["hello".chars().collect(), "bella".chars().collect()];
+        let strings = vec![String::from("hello"), String::from("bella")];
         let index = BaseGeneralizedSuffixArray::new(strings);
         println!("{:?}", index);
 
@@ -251,7 +245,7 @@ mod test {
             items.iter().map(|&s| s.to_owned()).collect()
         }
 
-        let strings: Vec<Vec<char>> = vec!["hello".chars().collect(), "bella".chars().collect()];
+        let strings = vec![String::from("hello"), String::from("bella")];
         let index = BaseGeneralizedSuffixArray::new(strings);
         println!("{:?}", index);
 
@@ -331,10 +325,7 @@ mod py {
 
     impl GeneralizedSuffixArray {
         fn get_item(&self, idx: usize) -> Option<String> {
-            self.suffix_array
-                .items
-                .get(idx)
-                .map(|it| it.iter().collect::<String>())
+            self.suffix_array.items.get(idx).cloned()
         }
     }
 
@@ -342,10 +333,7 @@ mod py {
     impl GeneralizedSuffixArray {
         #[new]
         pub fn new(strings: Vec<&str>) -> Self {
-            let items: Vec<Vec<char>> = strings
-                .into_iter()
-                .map(|line| line.chars().collect())
-                .collect();
+            let items = strings.into_iter().map(|line| line.to_owned()).collect();
 
             Self {
                 suffix_array: BaseGeneralizedSuffixArray::new(items),
@@ -374,10 +362,9 @@ mod py {
 
             let min_chars = cmp::max(min_chars, min_chars_from_pct);
 
-            let q: Vec<char> = query.chars().collect();
             let res = self
                 .suffix_array
-                .similar(&q, min_chars, min_pct)
+                .similar(&query, min_chars, min_pct)
                 .into_iter()
                 .map(|(k, v)| (k, v.into()))
                 .collect::<HashMap<_, _>>();
