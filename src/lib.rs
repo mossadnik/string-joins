@@ -129,7 +129,7 @@ impl BaseGeneralizedSuffixArray {
         let len = (query.chars().count() + 1).saturating_sub(min_overlap_chars);
 
         for (charidx, (offset, _)) in query.char_indices().enumerate() {
-            if charidx > len {
+            if charidx >= len {
                 break;
             }
             let q = &query[offset..];
