@@ -1,7 +1,6 @@
 use std::{
     cmp,
     collections::{HashMap, HashSet},
-    ops,
 };
 
 #[derive(Debug, PartialEq)]
@@ -25,19 +24,17 @@ fn get_longest_common_prefix(a: &str, b: &str) -> usize {
     pairs.take_while(|(a, b)| a == b).count()
 }
 
-fn get_item_suffix<'a>(items: &'a [String], suffix: &Suffix) -> &'a str {
-    &items[suffix.item][suffix.start..]
-}
-
 #[derive(Debug)]
 pub struct BaseGeneralizedSuffixArray {
-    pub items: Vec<String>,
+    pub items: String,
+    pub item_ranges: Vec<(usize, usize)>,
     pub suffixes: Vec<Suffix>,
     pub lcp_array: Vec<usize>,
 }
 
+#[allow(unused)]
 impl BaseGeneralizedSuffixArray {
-    pub fn new(items: Vec<String>) -> Self {
+    pub fn new(items: &[&str]) -> Self {
         let mut suffixes = Vec::new();
 
         for (item, content) in items.iter().enumerate() {
@@ -50,17 +47,34 @@ impl BaseGeneralizedSuffixArray {
         // insert dummy empty strings to simplify looping logic
         let mut lcp_array = vec![0];
         for (a, b) in suffixes.iter().zip(suffixes.iter().skip(1)) {
-            let s1 = get_item_suffix(&items, a);
-            let s2 = get_item_suffix(&items, b);
+            let s1 = &items[a.item][a.start..];
+            let s2 = &items[b.item][b.start..];
             lcp_array.push(get_longest_common_prefix(s1, s2));
         }
         lcp_array.push(0);
 
+        let (items, item_ranges) = Self::build_storage_data(&items);
+
         Self {
             items,
+            item_ranges,
             suffixes,
             lcp_array,
         }
+    }
+
+    fn build_storage_data(items: &[&str]) -> (String, Vec<(usize, usize)>) {
+        let mut storage_items = String::with_capacity(items.iter().map(|s| s.len()).sum());
+        let mut item_ranges = Vec::with_capacity(items.len());
+        let mut offset = 0;
+
+        for item in items {
+            storage_items.push_str(item);
+            item_ranges.push((offset, offset + item.len()));
+            offset += item.len();
+        }
+
+        (storage_items, item_ranges)
     }
 
     /// Get all suffixes around start_idx that share at least min_pcl elements with the query
@@ -73,7 +87,7 @@ impl BaseGeneralizedSuffixArray {
         let forward = {
             let mut pos = start_idx;
             let mut lcp = (start_idx < self.suffixes.len())
-                .then(|| get_longest_common_prefix(&self[start_idx], query))
+                .then(|| get_longest_common_prefix(&self.get_suffix(start_idx), query))
                 .unwrap_or(0);
 
             std::iter::from_fn(move || {
@@ -93,7 +107,7 @@ impl BaseGeneralizedSuffixArray {
         let backward = {
             let mut pos = start_idx;
             let mut lcp = (pos > 0)
-                .then(|| get_longest_common_prefix(&self[pos - 1], query))
+                .then(|| get_longest_common_prefix(&self.get_suffix(pos - 1), query))
                 .unwrap_or(0);
 
             std::iter::from_fn(move || {
@@ -135,13 +149,13 @@ impl BaseGeneralizedSuffixArray {
             let q = &query[offset..];
             let (Ok(start_idx) | Err(start_idx)) = self
                 .suffixes
-                .binary_search_by(|probe| get_item_suffix(&self.items, probe).cmp(q));
+                .binary_search_by(|probe| self.get_item_suffix(probe).cmp(q));
 
             for (idx, len_overlap) in self.get_neighborhood(q, start_idx, min_overlap_chars) {
                 let suffix = &self.suffixes[idx];
 
                 let len_1 = query.chars().count();
-                let len_2 = self.items[suffix.item].chars().count();
+                let len_2 = self.get_item_unchecked(suffix.item).chars().count();
                 let start_1 = offset;
                 let start_2 = suffix.start;
                 let overlap_pct = (2. * len_overlap as f32) / ((len_1 + len_2) as f32);
@@ -181,16 +195,28 @@ impl BaseGeneralizedSuffixArray {
     ) -> HashSet<String> {
         let res = self.similar(&query, min_overlap_chars, min_overlap_pct);
 
-        res.keys().map(|&i| self.items[i].clone()).collect()
+        res.keys()
+            .map(|&i| self.get_item_unchecked(i).to_owned())
+            .collect()
     }
-}
 
-impl ops::Index<usize> for BaseGeneralizedSuffixArray {
-    type Output = str;
+    fn get_suffix(&self, suffix_idx: usize) -> &str {
+        self.get_item_suffix(&self.suffixes[suffix_idx])
+    }
 
-    fn index(&self, idx: usize) -> &Self::Output {
-        let suffix = &self.suffixes[idx];
-        get_item_suffix(&self.items, suffix)
+    fn get_item_suffix(&self, suffix: &Suffix) -> &str {
+        let (start, end) = self.item_ranges[suffix.item];
+        &self.items[start..end][suffix.start..]
+    }
+
+    fn get_item(&self, idx: usize) -> Option<&str> {
+        let &(start, end) = self.item_ranges.get(idx)?;
+        Some(&self.items[start..end])
+    }
+
+    fn get_item_unchecked(&self, idx: usize) -> &str {
+        let (start, end) = self.item_ranges[idx];
+        &self.items[start..end]
     }
 }
 
@@ -202,9 +228,11 @@ mod test {
     ///
     #[test]
     fn correct_construction() {
-        let strings = vec![String::from("hello"), String::from("bella")];
-        let index = BaseGeneralizedSuffixArray::new(strings);
+        let index = BaseGeneralizedSuffixArray::new(&["hello", "bella"]);
         println!("{:?}", index);
+
+        assert_eq!(index.items, "hellobella");
+        assert_eq!(index.item_ranges, vec![(0, 5), (5, 10)]);
 
         assert_eq!(
             index.suffixes,
@@ -248,8 +276,7 @@ mod test {
             items.iter().map(|&s| s.to_owned()).collect()
         }
 
-        let strings = vec![String::from("hello"), String::from("bella")];
-        let index = BaseGeneralizedSuffixArray::new(strings);
+        let index = BaseGeneralizedSuffixArray::new(&["hello", "bella"]);
         println!("{:?}", index);
 
         let actual = index.similar_str("illi", 2, 0.0);
@@ -270,7 +297,7 @@ mod test {
 
     #[test]
     fn ensure_empty_index_does_not_panic() {
-        let index = BaseGeneralizedSuffixArray::new(Vec::new());
+        let index = BaseGeneralizedSuffixArray::new(&[]);
         println!("{:?}", index);
 
         index.similar_str("illi", 2, 0.0);
@@ -284,8 +311,7 @@ mod test {
             items.iter().map(|&s| s.to_owned()).collect()
         }
 
-        let strings = vec![String::from("hällö"), String::from("bällä")];
-        let index = BaseGeneralizedSuffixArray::new(strings);
+        let index = BaseGeneralizedSuffixArray::new(&["hällö", "bällä"]);
         println!("{:?}", index);
 
         let actual = index.similar_str("illi", 2, 0.0);
@@ -355,20 +381,12 @@ mod py {
         suffix_array: BaseGeneralizedSuffixArray,
     }
 
-    impl GeneralizedSuffixArray {
-        fn get_item(&self, idx: usize) -> Option<String> {
-            self.suffix_array.items.get(idx).cloned()
-        }
-    }
-
     #[pymethods]
     impl GeneralizedSuffixArray {
         #[new]
-        pub fn new(strings: Vec<&str>) -> Self {
-            let items = strings.into_iter().map(|line| line.to_owned()).collect();
-
+        pub fn new(items: Vec<&str>) -> Self {
             Self {
-                suffix_array: BaseGeneralizedSuffixArray::new(items),
+                suffix_array: BaseGeneralizedSuffixArray::new(&items),
             }
         }
 
@@ -414,9 +432,10 @@ mod py {
         fn __getitem__(&self, key: isize) -> PyResult<String> {
             let idx = usize::try_from(key)?;
             let res = self
+                .suffix_array
                 .get_item(idx)
                 .ok_or_else(|| PyIndexError::new_err(()))?;
-            Ok(res)
+            Ok(res.to_owned())
         }
     }
 
