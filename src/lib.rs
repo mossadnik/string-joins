@@ -126,9 +126,12 @@ impl BaseGeneralizedSuffixArray {
 
         let mut res: HashMap<usize, MatchDetails> = HashMap::new();
 
-        let len = (query.len() + 1).saturating_sub(min_overlap_chars);
+        let len = (query.chars().count() + 1).saturating_sub(min_overlap_chars);
 
-        for offset in 0..len {
+        for (charidx, (offset, _)) in query.char_indices().enumerate() {
+            if charidx > len {
+                break;
+            }
             let q = &query[offset..];
             let (Ok(start_idx) | Err(start_idx)) = self
                 .suffixes
@@ -271,6 +274,35 @@ mod test {
         println!("{:?}", index);
 
         index.similar_str("illi", 2, 0.0);
+    }
+
+    /// Test some example queries
+    ///
+    #[test]
+    fn utf8_queries() {
+        fn stringset(items: &[&str]) -> HashSet<String> {
+            items.iter().map(|&s| s.to_owned()).collect()
+        }
+
+        let strings = vec![String::from("hällö"), String::from("bällä")];
+        let index = BaseGeneralizedSuffixArray::new(strings);
+        println!("{:?}", index);
+
+        let actual = index.similar_str("illi", 2, 0.0);
+        let expected = stringset(&["hällö", "bällä"]);
+        assert_eq!(actual, expected);
+
+        let actual = index.similar_str("illi", 3, 0.0);
+        let expected = stringset(&[]);
+        assert_eq!(actual, expected);
+
+        let actual = index.similar_str("illö", 3, 0.0);
+        let expected = stringset(&["hällö"]);
+        assert_eq!(actual, expected);
+
+        let actual = index.similar_str("ällö", 3, 0.0);
+        let expected = stringset(&["hällö", "bällä"]);
+        assert_eq!(actual, expected);
     }
 }
 
